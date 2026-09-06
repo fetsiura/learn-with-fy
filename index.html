@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Words" />
+<meta name="theme-color" content="#111111" />
+<link rel="manifest" href="manifest.json" />
+<title>Words</title>
+<style>
+  * { box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; }
+  body {
+    margin: 0; padding: 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    background: #111; color: #eee;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wrap { max-width: 520px; margin: 0 auto; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tabs button { flex: 1; }
+  button {
+    padding: 12px; border: 1px solid #333; border-radius: 8px;
+    background: #1c1c1c; color: #eee; font-size: 15px; cursor: pointer;
+    touch-action: manipulation;
+  }
+  button.active { background: #eee; color: #111; border-color: #eee; }
+  input, textarea, select {
+    width: 100%; padding: 12px; margin-bottom: 8px; font-size: 16px;
+    border: 1px solid #333; border-radius: 8px; background: #1c1c1c; color: #eee;
+  }
+  textarea { min-height: 110px; resize: vertical; }
+  .muted { color: #888; font-size: 14px; margin-bottom: 8px; }
+  .card {
+    border: 1px solid #333; border-radius: 12px; padding: 24px 16px;
+    min-height: 220px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    cursor: pointer; margin-bottom: 12px;
+  }
+  .front { font-size: 30px; font-weight: bold; word-break: break-word; }
+  .back { font-size: 22px; color: #9ad; margin-top: 14px; word-break: break-word; }
+  .hint { font-size: 13px; color: #777; margin-top: 16px; }
+  .row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .row button, .row input { flex: 1; margin-bottom: 0; }
+  .know { border-color: #2e7d32; color: #7ddc85; }
+  .dont { border-color: #a33; color: #f28b82; }
+  ul { list-style: none; padding: 0; margin: 12px 0 0; }
+  li {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 0; border-bottom: 1px solid #262626; font-size: 15px;
+  }
+  li .w { flex: 1; word-break: break-word; }
+  li .t { flex: 1; color: #999; word-break: break-word; }
+  li button { padding: 6px 10px; font-size: 13px; }
+  .learned .w, .learned .t { text-decoration: line-through; color: #666; }
+  hr { border: none; border-top: 1px solid #262626; margin: 20px 0; }
+  h3 { margin: 0 0 8px; font-size: 15px; font-weight: bold; }
+  .hide { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tabs">
+    <button id="tabStudy" class="active" onclick="showTab('study')">Вчити</button>
+    <button id="tabList" onclick="showTab('list')">Словник</button>
+    <button id="tabMenu" onclick="showTab('menu')">Меню</button>
+  </div>
+
+  <div id="study">
+    <div class="row">
+      <button id="modeEn" onclick="setDir('en')">EN → UA</button>
+      <button id="modeUa" onclick="setDir('ua')">UA → EN</button>
+    </div>
+    <div class="row">
+      <button id="scopeAll" onclick="setScope('all')">Весь словник</button>
+      <button id="scopeAdded" onclick="setScope('added')">Тільки додані</button>
+    </div>
+    <button onclick="shuffleQueue()">Перемішати</button>
+    <div class="muted" id="progress"></div>
+    <div class="card" id="card" onclick="reveal()">
+      <div class="front" id="front"></div>
+      <div class="back hide" id="back"></div>
+      <div class="hint" id="hint"></div>
+    </div>
+    <div class="row" id="answers">
+      <button class="dont" onclick="answer(false)">Не знаю</button>
+      <button class="know" onclick="answer(true)">Знаю</button>
+    </div>
+  </div>
+
+  <div id="list" class="hide">
+    <input id="search" placeholder="Пошук" oninput="renderList()" />
+    <div class="row">
+      <input id="newWord" placeholder="word" />
+      <input id="newTr" placeholder="переклад" />
+    </div>
+    <button onclick="addWord()">Додати слово</button>
+    <div class="muted" id="listInfo"></div>
+    <ul id="items"></ul>
+  </div>
+
+  <div id="menu" class="hide">
+    <h3>Імпорт з CSV</h3>
+    <div class="muted">Формат рядка: word; переклад</div>
+    <input type="file" id="file" accept=".csv,.txt" onchange="importFile(this)" />
+    <textarea id="paste" placeholder="або вставте текст сюди"></textarea>
+    <button onclick="importText(document.getElementById('paste').value, true)">Імпортувати текст</button>
+    <hr />
+    <h3>Дані</h3>
+    <button onclick="exportCsv()">Експорт CSV</button>
+    <button onclick="loadBase()">Завантажити базовий список</button>
+    <button onclick="resetProgress()">Скинути прогрес</button>
+    <button onclick="deleteAll()">Видалити всі слова</button>
+  </div>
+</div>
+
+<script type="text/plain" id="seed">
+ability; здатність
+accurate; точний
+achieve; досягати
+adhering; дотримуючись
+adjusting; налаштування
+adore; обожнюю
+affection; пристрасть
+affirming; підтвердження
+all that remains; все що залишилося
+along the way; по дорозі
+ambiguity; двозначний
+annual; щорічний
+anxiety; тривога
+appointment; призначення зустріч
+appropriate; відповідний підходящий
+approximately; приблизно
+argue; сперечатися
+arrangement; домовленість розміщення
+arrogant; зарозумілий хамский
+arrow; стріла
+assessment; оцінка
+assigned; призначений
+at stake; на кону
+barbed; колючий
+barely; ледве
+bearer; носій
+beats me; не знаю
+to belong; належати
+below; нижче
+belt; пояс
+beyond; поза межами
+boilerplate; шаблонний
+bother; турбота
+boundary; межа
+brag; хвалитися
+bummer; ппц
+buzzkill; душніла
+by no means; ні в якому разі
+casually; випадково
+to cause; викликати
+certain; впевнений
+clutter; безлад
+co-worker; співробітник
+coined; придуманий
+come in handy; пригодиться
+completely; повністю
+condition; умова стан
+confidently; впевнено
+confusing; плутанина
+conscious; свідомий
+consideration; увага
+constraints; обмеження
+contribution; внесок
+costly; дорогий
+could you spare me a moment; чи не могли б ви уділити мені хвилину
+count us in; враховуйте нас
+coward; боягуз
+cuisine; кухня
+demand; вимога
+dibs this's mine; чур це моє
+disaster; лихо
+discombobulate; збити з пантелику
+disease; хвороба
+disgusting; огидний
+divorcement; розлучення
+dizzy; запаморочення
+do chores; виконувати домашні обов'язки
+drafting; розробка
+dreams come true; мрії збуваються
+drought; засуха
+due to unforeseen circumstances; у зв'язку з непередбаченими обставинами
+duty; обов'язок
+efficiently; ефективно
+elderly; літній
+embedded; вбудований
+emphasize; підкреслити
+enormous; величезний
+enrich; збагатити
+escape; втекти
+even though; навіть якщо
+excited; збуджений
+expel; вигнати
+expense; витрати
+expression; вираз
+exquisite; вишуканий
+external; зовнішній
+facilities; засоби
+faint; слабкий
+fair; справедливий
+faith; віра
+favor; послуга
+fence; паркан
+find out; дізнатися
+finish up; закінчити
+flooding; повені
+forbidden; заборонено
+fragrant; ароматний
+frequently; часто
+further; подальший
+gamble; гра у азартні ігри
+get away; втекти
+giggle; хихикання
+give out; роздавати
+glitching; глючить
+go straight; йти прямо
+good call; хороший вибір
+good riddance; скатертю дорога
+grab; схопити
+graduate; випускник
+greet; привітати
+grocery; гастрономічний магазин
+guess; здогадуватись
+handshake; рукостискання
+hang out; роздати
+hanging around; втикаюсь собі
+hazard; небезпека
+headquarter; штаб-квартира
+highly unlikely; малоймовірно
+hire; найняти
+horn; ріг
+however; проте
+hurt; зашкодити
+catch it got it; я зрозумів
+I nearly; я майже
+I respectfully decline; Я з повагою відмовляюся
+I screwed up; Я облажався
+I am completely on the dark; Я абсолютно не розумію
+If I were you; Якби я був на твоєму місці
+I'm in; Я за
+immediately; негайно
+inherit; успадкувати
+innocent; невинний
+insist; наполягати
+instead; замість цього
+insult; образа
+intent; намір
+interaction; взаємодія
+interview; інтерв'ю
+intricate; заплутаний
+inventor; винахідник
+investigating; розслідування
+it's giving; це класно 
+janitor; прибиральник
+justice; справедливість
+lackluster; безбарвний
+landfill; сміттєзвалище
+last long; тривати довго
+law; закон
+leap; стрибок
+lessen; зменшувати
+literally; буквально
+loan; позика
+longest-serving; найдовший строк служби
+maintainability; ремонтоспособність
+maintenance; обслуговування
+make me suffer; змусити мене страждати
+malformed; деформований 
+mammal; ссавець
+mention; згадка
+messy; безладний
+misunderstanding; непорозуміння
+mother lode; жолота жила
+nap; дрімка
+narrow; вузький
+nausea; нудота
+nephew; племінник
+nearby; поруч
+not a big deal; без проблем
+no guts no glory; без сміливості немає слави
+obey; підпорядковуватись
+obsessed; одержимий
+occur alongside; відбуватися одночасно
+once in a blue moon; раз на синьому місяці
+opportunity; можливість
+opposite; протилежний
+optional; необов'язковий
+orderly; організований
+otherwise; в іншому випадку
+outline; контур
+outplace; випереджати
+outskirts; передмістя
+No pain, no gain; без болю немає перемоги
+overcome; подолати
+particular; особливий
+partly; частково
+perform; виконувати
+performance; виступ
+perk; бонус
+persuasive; переконливий
+pigeon; голуб
+pleasant; приємний
+plural; множинний
+poking; тицяння
+polite; ввічливий
+pollution; забруднення
+pop over; заглянути в гості
+precede; передувати
+prefer; віддавати перевагу
+prerequisite; передумова
+properly; належним чином
+prosthetic; протез
+puddle; калюжа
+puppetmaster; керуючий ляльками
+purchase; покупка
+pursue; переслідувати
+rarely; рідко
+receipt; квитанція
+refreshing; освіжаючий
+regret; шкода
+relevant; відповідний
+remedy; засіб
+respond; реагувати
+responsibilities; відповідальності
+retrieve; відновлювати
+robustness; міцність
+scorcher; зірвиголова
+seldom; рідко
+selfish; самовпевнений єгоїстичний
+sensitive; чутливий
+separate; окремий
+several; кілька
+shake a leg; рухай булками
+shift; зміна
+shove; штовхнути
+similar; схожий
+simultaneously; одночасно
+sip; ковток
+sneaky; підступний
+specifically; конкретно
+spill the tea; пліткувати
+startled; наляканий
+strangle; душити
+starving; голодний
+suddenly; раптово
+suffocation; задушення
+suggest; запропонувати
+suspended; призупинений
+supplies; запаси
+suspect; підозрювати
+swap; обмінювати
+sword; меч
+take time off; взяти вихідний
+take your time; не поспішай
+taking into account; беручи до уваги
+tend to lose; має тенденцію втрачати
+therefore; отже
+thirsty; спраглий
+this is lit; це класно
+thoroughly; ретельно
+thought; думка
+tidy; охайний
+tip; порада
+toes; пальці ніг
+towards; до
+trailblazer; шляхопрокладач
+trait; риса
+traitor; зрадник
+transition; перехід
+tribe; плем'я
+trick; трюк
+undoubtedly; безперечно
+upstairs; нагорі
+urgently; негайно
+useful; корисний
+usually; зазвичай
+valuable; цінний
+vermin; шкідник
+versatile; універсальний
+vessel; судно
+vicinity; навколишність
+villain; злочинець
+violation; порушення
+waist; талія
+warm up; розігріватися
+watch out; будьте обережні
+weak; слабкий
+what's poppin; як справи неформально
+whatever; будь-що 
+who cares; кому це важливо
+wide variety; широкий вибір
+win-win; безпрограшний
+worn out; вичерпаний
+you're one tough cookie; ти справжній борець
+you might be wondering; ви можливо дивуєтеся
+envelope; оболочка
+adhere; притримуватись
+strict; строго
+mandatorily; в обов'язковому порядку
+prevent; запобігання
+expose; розкривати обнародувати
+evenly; рівномірно
+spread; розприділити намазати
+procure; придбати
+pledge; обіцянка
+enhance; покращити
+gooey; липкий
+puny; мізерний
+misery; страждання
+resist; протистояти
+resilience;	стійкість
+feign; прикидатись
+circuit breaker; автоматичний вимикач
+thief; злодій
+mope; сумувати
+claim; претенія
+harsh; суворий
+nodding; кивати
+fist; кулак
+shortage; дефіцит
+surplus; надлишок
+gossip; пліткувати
+</script>
+
+<script>
+const KEY = 'flipper.words';
+const DIR_KEY = 'flipper.dir';
+const SEEDED_KEY = 'flipper.seeded';
+const QUEUE_KEY = 'flipper.queue';
+const SCOPE_KEY = 'flipper.scope';
+
+let words = load();
+let dir = localStorage.getItem(DIR_KEY) || 'en';
+let scope = localStorage.getItem(SCOPE_KEY) || 'all';
+let queue = [];
+
+function load() {
+  try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; }
+}
+
+function save() { localStorage.setItem(KEY, JSON.stringify(words)); }
+
+function saveQueue() { localStorage.setItem(QUEUE_KEY, JSON.stringify(queue)); }
+
+function inScope(i) { return scope === 'all' || words[i].source === 'added'; }
+
+function loadQueue() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(QUEUE_KEY));
+    if (!Array.isArray(saved)) return null;
+    const valid = saved.filter(i => Number.isInteger(i) && words[i] && !words[i].learned && inScope(i));
+    return valid.length ? valid : null;
+  } catch (e) { return null; }
+}
+
+function showTab(name) {
+  ['study', 'list', 'menu'].forEach(t => {
+    document.getElementById(t).classList.toggle('hide', t !== name);
+    document.getElementById('tab' + t[0].toUpperCase() + t.slice(1)).classList.toggle('active', t === name);
+  });
+  if (name === 'list') renderList();
+  if (name === 'study') renderCard();
+}
+
+function buildQueue() {
+  queue = words.map((w, i) => i).filter(i => !words[i].learned && inScope(i));
+  for (let i = queue.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [queue[i], queue[j]] = [queue[j], queue[i]];
+  }
+  saveQueue();
+}
+
+function shuffleQueue() { buildQueue(); renderCard(); }
+
+function setScope(value) {
+  scope = value;
+  localStorage.setItem(SCOPE_KEY, scope);
+  document.getElementById('scopeAll').classList.toggle('active', scope === 'all');
+  document.getElementById('scopeAdded').classList.toggle('active', scope === 'added');
+  buildQueue();
+  renderCard();
+}
+
+function renderCard() {
+  const scoped = words.filter((w, i) => scope === 'all' || w.source === 'added');
+  const learned = scoped.filter(w => w.learned).length;
+  document.getElementById('progress').textContent = scoped.length
+    ? 'Вивчено ' + learned + ' з ' + scoped.length
+    : (scope === 'added' ? 'Немає доданих слів.' : 'Немає слів. Імпортуйте CSV у меню.');
+
+  const answers = document.getElementById('answers');
+  const front = document.getElementById('front');
+  const back = document.getElementById('back');
+  const hint = document.getElementById('hint');
+  back.classList.add('hide');
+
+  if (!queue.length) {
+    front.textContent = scoped.length ? 'Все вивчено' : '';
+    hint.textContent = '';
+    answers.classList.add('hide');
+    return;
+  }
+  const w = words[queue[0]];
+  front.textContent = dir === 'en' ? w.w : w.t;
+  back.textContent = dir === 'en' ? w.t : w.w;
+  hint.textContent = 'Натисніть, щоб побачити переклад';
+  answers.classList.remove('hide');
+}
+
+function reveal() {
+  if (!queue.length) return;
+  document.getElementById('back').classList.remove('hide');
+  document.getElementById('hint').textContent = '';
+}
+
+function answer(known) {
+  if (!queue.length) return;
+  const i = queue.shift();
+  if (known) {
+    words[i].learned = true;
+    save();
+  } else {
+    queue.splice(Math.min(queue.length, 4), 0, i);
+  }
+  saveQueue();
+  renderCard();
+}
+
+function renderList() {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const ul = document.getElementById('items');
+  const learned = words.filter(w => w.learned).length;
+  document.getElementById('listInfo').textContent = 'Всього: ' + words.length + ', вивчено: ' + learned;
+  ul.innerHTML = '';
+
+  words.forEach((w, i) => {
+    if (q && !w.w.toLowerCase().includes(q) && !w.t.toLowerCase().includes(q)) return;
+    const li = document.createElement('li');
+    if (w.learned) li.className = 'learned';
+    const wSpan = document.createElement('span');
+    wSpan.className = 'w';
+    wSpan.textContent = w.w;
+    const tSpan = document.createElement('span');
+    tSpan.className = 't';
+    tSpan.textContent = w.t;
+    const toggle = document.createElement('button');
+    toggle.textContent = w.learned ? 'x' : 'v';
+    toggle.title = w.learned ? 'Вчити знову' : 'Позначити вивченим';
+    toggle.onclick = () => { words[i].learned = !words[i].learned; save(); buildQueue(); renderList(); };
+    const del = document.createElement('button');
+    del.textContent = 'del';
+    del.onclick = () => { words.splice(i, 1); save(); buildQueue(); renderList(); };
+    li.append(wSpan, tSpan, toggle, del);
+    ul.appendChild(li);
+  });
+}
+
+function addWord() {
+  const wEl = document.getElementById('newWord');
+  const tEl = document.getElementById('newTr');
+  const w = wEl.value.trim();
+  const t = tEl.value.trim();
+  if (!w || !t) return;
+  if (words.some(x => x.w.toLowerCase() === w.toLowerCase())) {
+    alert('Таке слово вже є');
+    return;
+  }
+  words.push({ w: w, t: t, learned: false, source: 'added' });
+  save();
+  buildQueue();
+  wEl.value = '';
+  tEl.value = '';
+  renderList();
+}
+
+function parseLine(line) {
+  const parts = line.split(/[;,\t]/);
+  if (parts.length < 2) return null;
+  const w = parts[0].trim().replace(/^"|"$/g, '');
+  const t = parts.slice(1).join(',').trim().replace(/^"|"$/g, '');
+  if (!w || !t) return null;
+  return { w: w, t: t, learned: false };
+}
+
+function importText(text, notify) {
+  const existing = new Set(words.map(w => w.w.toLowerCase()));
+  let added = 0;
+  text.split(/\r?\n/).forEach(line => {
+    if (!line.trim()) return;
+    const item = parseLine(line);
+    if (!item || existing.has(item.w.toLowerCase())) return;
+    existing.add(item.w.toLowerCase());
+    words.push(item);
+    added++;
+  });
+  save();
+  buildQueue();
+  renderCard();
+  if (notify) {
+    document.getElementById('paste').value = '';
+    alert('Додано слів: ' + added);
+  }
+  return added;
+}
+
+function importFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { importText(reader.result, true); input.value = ''; };
+  reader.readAsText(file, 'utf-8');
+}
+
+function loadBase() {
+  importText(document.getElementById('seed').textContent, true);
+}
+
+function exportCsv() {
+  const csv = words.map(w => w.w + '; ' + w.t + '; ' + (w.learned ? '1' : '0')).join('\r\n');
+  const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'words.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function resetProgress() {
+  if (!confirm('Скинути прогрес вивчення?')) return;
+  words.forEach(w => w.learned = false);
+  save();
+  buildQueue();
+  renderCard();
+  renderList();
+}
+
+function deleteAll() {
+  if (!confirm('Видалити всі слова?')) return;
+  words = [];
+  save();
+  buildQueue();
+  renderCard();
+  renderList();
+}
+
+function setDir(value) {
+  dir = value;
+  localStorage.setItem(DIR_KEY, dir);
+  document.getElementById('modeEn').classList.toggle('active', dir === 'en');
+  document.getElementById('modeUa').classList.toggle('active', dir === 'ua');
+  renderCard();
+}
+
+if (!words.length && !localStorage.getItem(SEEDED_KEY)) {
+  localStorage.setItem(SEEDED_KEY, '1');
+  importText(document.getElementById('seed').textContent, false);
+}
+
+setDir(dir);
+document.getElementById('scopeAll').classList.toggle('active', scope === 'all');
+document.getElementById('scopeAdded').classList.toggle('active', scope === 'added');
+queue = loadQueue() || (buildQueue(), queue);
+renderCard();
+</script>
+</body>
+</html>
